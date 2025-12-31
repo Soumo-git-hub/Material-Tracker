@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
+import type { MaterialRequest, MaterialRequestWithUser, RequestStatus } from "@/types"
 
 export function useMaterialRequests() {
     const qc = useQueryClient()
@@ -9,34 +10,91 @@ export function useMaterialRequests() {
 
     const { data: requests, isLoading } = useQuery({
         queryKey: key,
-        queryFn: async () => {
+        queryFn: async (): Promise<MaterialRequestWithUser[]> => {
             if (!profile?.company_id) return []
-            const { data, error } = await supabase.from('material_requests')
-                .select('*, profiles:requested_by(full_name)')
+
+            const { data, error } = await supabase
+                .from('material_requests')
+                .select(`
+                    *,
+                    profiles:requested_by (
+                        full_name
+                    )
+                `)
                 .eq('company_id', profile.company_id)
                 .order('requested_at', { ascending: false })
+
             if (error) throw error
-            return data.map(r => ({ ...r, requested_by_name: (r.profiles as any)?.full_name || 'Personnel' }))
+
+            return (data as any[]).map(r => ({
+                ...r,
+                requested_by_name: r.profiles?.full_name || 'Unknown Personnel'
+            }))
         },
         enabled: !!profile?.company_id,
         staleTime: 60000,
     })
 
     const createRequest = useMutation({
-        mutationFn: async (v: any) => {
+        mutationFn: async (newRequest: Omit<MaterialRequest, 'id' | 'requested_at' | 'updated_at' | 'company_id' | 'requested_by' | 'status'>) => {
+            if (!user?.id || !profile?.company_id) throw new Error("User not authenticated")
+
             const { error } = await supabase.from('material_requests').insert([{
-                ...v,
-                company_id: profile?.company_id,
-                requested_by: user?.id
+                ...newRequest,
+                status: 'pending',
+                company_id: profile.company_id,
+                requested_by: user.id
             }])
             if (error) throw error
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: key }),
     })
 
+    const updateStatus = useMutation({
+        mutationFn: async ({ id, status }: { id: string, status: RequestStatus }) => {
+            const { error } = await supabase
+                .from('material_requests')
+                .update({ status })
+                .eq('id', id)
+            if (error) throw error
+        },
+        onMutate: async ({ id, status }) => {
+            await qc.cancelQueries({ queryKey: key })
+            const previousRequests = qc.getQueryData<MaterialRequestWithUser[]>(key)
+
+            qc.setQueryData<MaterialRequestWithUser[]>(key, (old) =>
+                old ? old.map(r => r.id === id ? { ...r, status } : r) : []
+            )
+
+            return { previousRequests }
+        },
+        onError: (_err, _newReq, context) => {
+            if (context?.previousRequests) {
+                qc.setQueryData(key, context.previousRequests)
+            }
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    })
+
+    const updateRequest = useMutation({
+        mutationFn: async ({ id, updates }: { id: string, updates: Partial<MaterialRequest> }) => {
+            const { error } = await supabase
+                .from('material_requests')
+                .update({ ...updates, updated_at: new Date().toISOString() })
+                .eq('id', id)
+            if (error) throw error
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    })
+
     return {
-        requests, isLoading,
+        requests,
+        isLoading,
         createRequest: createRequest.mutateAsync,
-        isPending: createRequest.isPending
+        updateRequest: updateRequest.mutateAsync,
+        updateStatus: updateStatus.mutateAsync,
+        isCreating: createRequest.isPending,
+        isUpdating: updateStatus.isPending,
+        isEditing: updateRequest.isPending
     }
 }

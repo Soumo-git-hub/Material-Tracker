@@ -4,14 +4,34 @@ import { AlertCircle, Building2, Clock, CheckCircle2 } from "lucide-react"
 import { StatsCards } from "@/features/dashboard/components/StatsCards"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/useAuth"
+import { cn, getStatusColor } from "@/lib/utils"
 import { useMaterialRequests } from "@/features/requests/hooks/useMaterialRequests"
+
+const LoadingSkeleton = () => (
+    <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border/40">
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <div className="space-y-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                    </div>
+                </div>
+                <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+        ))}
+    </div>
+)
 
 export default function DashboardPage() {
     const { profile, loading } = useAuth()
-    const { requests } = useMaterialRequests()
+    const { requests, isLoading: isRequestsLoading } = useMaterialRequests()
 
-    if (!loading && !profile?.company_id) return <Navigate to="/setup-company" replace />
+    if (loading) return <div className="p-8 space-y-8"><Skeleton className="h-8 w-48" /><div className="grid gap-6 md:grid-cols-2"><Skeleton className="h-[300px] w-full" /><Skeleton className="h-[300px] w-full" /></div></div>
+    if (!profile?.company_id) return <Navigate to="/setup-company" replace />
 
     const urgent = requests?.filter(r => r.priority === 'urgent' && r.status === 'pending').slice(0, 5) || []
 
@@ -52,7 +72,7 @@ export default function DashboardPage() {
                         {urgent.length > 0 && <Badge variant="destructive" className="h-5 rounded-md px-1.5 text-[10px] uppercase font-bold">{urgent.length}</Badge>}
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        {urgent.length > 0 ? urgent.map(r => (
+                        {isRequestsLoading ? <LoadingSkeleton /> : urgent.length > 0 ? urgent.map(r => (
                             <PriorityItem key={r.id} request={r} />
                         )) : <EmptyState icon={CheckCircle2} title="All Clear" subtitle="No urgent materials pending action." />}
                     </CardContent>
@@ -68,7 +88,7 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent className="flex-grow pt-2 relative overflow-hidden">
                         <div className="space-y-1 relative">
-                            {requests?.length ? requests.slice(0, 8).map(r => (
+                            {isRequestsLoading ? <LoadingSkeleton /> : requests?.length ? requests.slice(0, 8).map(r => (
                                 <ActivityItem key={r.id} request={r} />
                             )) : <ActivityEmptyState />}
                         </div>
@@ -79,7 +99,9 @@ export default function DashboardPage() {
     )
 }
 
-const PriorityItem = ({ request }: { request: any }) => (
+import type { MaterialRequestWithUser } from "@/types"
+
+const PriorityItem = ({ request }: { request: MaterialRequestWithUser }) => (
     <div className="flex items-center justify-between p-3.5 rounded-xl bg-background border border-border/50 hover:border-destructive/30 transition-colors group">
         <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-destructive/5 flex items-center justify-center border border-destructive/10">
@@ -98,13 +120,10 @@ const PriorityItem = ({ request }: { request: any }) => (
     </div>
 )
 
-const ActivityItem = ({ request }: { request: any }) => (
+const ActivityItem = ({ request }: { request: MaterialRequestWithUser }) => (
     <div className="flex items-center justify-between py-3 border-b border-border/40 last:border-0 hover:bg-muted/30 px-2 rounded-lg transition-colors group">
         <div className="flex items-center gap-3">
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-[10px] font-bold border transition-colors
-                ${request.status === 'pending' ? 'bg-amber-500/5 text-amber-600 border-amber-200/50' :
-                    request.status === 'approved' ? 'bg-emerald-500/5 text-emerald-600 border-emerald-200/50' :
-                        'bg-blue-500/5 text-blue-600 border-blue-200/50'}`}>
+            <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center text-[10px] font-bold border transition-colors", getStatusColor(request.status, 'bg'))}>
                 {request.requested_by_name?.charAt(0)}
             </div>
             <div>
@@ -113,10 +132,7 @@ const ActivityItem = ({ request }: { request: any }) => (
             </div>
         </div>
         <div className="text-right">
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border
-                ${request.status === 'pending' ? 'bg-amber-500/10 text-amber-600 border-amber-200' :
-                    request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' :
-                        'bg-blue-500/10 text-blue-600 border-blue-200'}`}>
+            <span className={cn("text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border", getStatusColor(request.status, 'badge'))}>
                 {request.status}
             </span>
             <p className="text-[10px] text-muted-foreground/50 font-medium mt-1 uppercase tracking-tighter">
@@ -126,7 +142,7 @@ const ActivityItem = ({ request }: { request: any }) => (
     </div>
 )
 
-const EmptyState = ({ icon: Icon, title, subtitle }: any) => (
+const EmptyState = ({ icon: Icon, title, subtitle }: { icon: React.ElementType, title: string, subtitle: string }) => (
     <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground/50">
         <Icon className="h-10 w-10 mb-4 opacity-40" />
         <p className="text-xs font-bold uppercase tracking-widest">{title}</p>

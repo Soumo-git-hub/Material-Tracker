@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Layout } from "lucide-react"
+import { Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/form-controls"
@@ -73,7 +73,7 @@ export default function LoginPage() {
                                         </FormItem>
                                     )} />
                                     <Button type="submit" className="w-full h-10 text-xs font-bold" disabled={loading}>
-                                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (tab === "login" ? "CONTINUE" : "REGISTER")}
+                                        {loading ? <span className="animate-pulse tracking-widest">PROCESSING...</span> : (tab === "login" ? "CONTINUE" : "REGISTER")}
                                     </Button>
                                     <div className="relative pt-2">
                                         <div className="absolute inset-x-0 top-1/2 flex items-center"><span className="w-full border-t border-border/60" /></div>
