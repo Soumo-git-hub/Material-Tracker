@@ -1,5 +1,5 @@
-import { MaterialRequestForm } from "@/components/forms/MaterialRequestForm"
-import { MaterialRequestsList } from "@/components/requests/MaterialRequestsList"
+import { MaterialRequestForm } from "@/features/requests/components/MaterialRequestForm"
+import { MaterialRequestsList } from "@/features/requests/components/MaterialRequestsList"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
